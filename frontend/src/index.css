@@ -1,0 +1,310 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Visible keyboard focus everywhere */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #2F6F4E;
+  outline-offset: 2px;
+}
+
+/* ─────────────────────────────────────────────────────────
+   GLOBAL ANIMATION KEYFRAMES
+───────────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+@keyframes spin-smooth {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;   transform: scale(1);    }
+  50%       { opacity: 0.5; transform: scale(0.85); }
+}
+
+@keyframes badge-pop {
+  0%   { transform: scale(0.8);  opacity: 0; }
+  60%  { transform: scale(1.12); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+/* ─────────────────────────────────────────────────────────
+   PAGE / CARD ENTRANCE ANIMATIONS
+───────────────────────────────────────────────────────── */
+
+.page-enter {
+  animation: fade-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.scale-in {
+  animation: scale-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Cards lift gently on hover */
+.card-hover {
+  transition: box-shadow 0.22s ease, transform 0.22s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -6px rgba(47, 111, 78, 0.18);
+}
+
+/* ─────────────────────────────────────────────────────────
+   BUTTON MICRO-INTERACTIONS
+   Applied via global selector — every button gets a
+   springy press and smooth colour transition.
+───────────────────────────────────────────────────────── */
+
+button,
+[role="button"] {
+  transition:
+    background-color 0.18s ease,
+    border-color     0.18s ease,
+    color            0.18s ease,
+    box-shadow       0.2s ease,
+    transform        0.13s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity          0.15s ease;
+}
+
+/* Press / tap feedback */
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.95) !important;
+  transition-duration: 0.08s !important;
+}
+
+/* ── Primary (green) buttons – shimmer + lift ── */
+.btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.2) 50%,
+    transparent 70%
+  );
+  background-size: 200% auto;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.btn-primary:not(:disabled):hover::after {
+  opacity: 1;
+  animation: shimmer 0.6s linear;
+}
+.btn-primary:not(:disabled):hover {
+  box-shadow: 0 6px 20px -4px rgba(47, 111, 78, 0.55);
+  transform: translateY(-1px);
+}
+
+/* ── Ghost buttons – lift + shadow ── */
+.btn-ghost:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.12);
+}
+
+/* ── Danger buttons – red glow ── */
+.btn-danger:not(:disabled):hover {
+  box-shadow: 0 6px 20px -4px rgba(178, 58, 46, 0.5);
+  transform: translateY(-1px);
+}
+
+/* ── Small status-transition buttons ── */
+.btn-status:not(:disabled):hover {
+  transform: translateY(-1px) scale(1.03);
+}
+
+/* ─────────────────────────────────────────────────────────
+   SIDEBAR NAV ANIMATIONS
+───────────────────────────────────────────────────────── */
+
+/* Active item animated left accent bar */
+.nav-active {
+  position: relative;
+}
+.nav-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 55%;
+  background: #2F6F4E;
+  border-radius: 0 3px 3px 0;
+  animation: fade-in 0.2s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Nav items staggered slide-in */
+.nav-item {
+  animation: slide-in-left 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nav-item:nth-child(1) { animation-delay: 0.03s; }
+.nav-item:nth-child(2) { animation-delay: 0.07s; }
+.nav-item:nth-child(3) { animation-delay: 0.11s; }
+.nav-item:nth-child(4) { animation-delay: 0.15s; }
+.nav-item:nth-child(5) { animation-delay: 0.19s; }
+.nav-item:nth-child(6) { animation-delay: 0.23s; }
+
+/* ─────────────────────────────────────────────────────────
+   TABLE ROWS — subtle hover highlight transition
+───────────────────────────────────────────────────────── */
+
+tr {
+  transition: background-color 0.14s ease;
+}
+
+/* ─────────────────────────────────────────────────────────
+   STATUS BADGES — pop-in on mount
+───────────────────────────────────────────────────────── */
+
+.badge-pop {
+  animation: badge-pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ─────────────────────────────────────────────────────────
+   FORM INPUTS — focus glow
+───────────────────────────────────────────────────────── */
+
+input,
+select,
+textarea {
+  transition:
+    border-color 0.18s ease,
+    box-shadow   0.18s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 3px rgba(47, 111, 78, 0.14);
+}
+
+/* ─────────────────────────────────────────────────────────
+   STAT / SUMMARY CARDS — number count-up feel via scale
+───────────────────────────────────────────────────────── */
+
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  box-shadow: 0 10px 28px -8px rgba(47, 111, 78, 0.2);
+}
+
+/* ─────────────────────────────────────────────────────────
+   SPINNER UTILITY (replaces Tailwind animate-spin for
+   smoother easing)
+───────────────────────────────────────────────────────── */
+
+.spin {
+  animation: spin-smooth 0.75s linear infinite;
+}
+
+/* ─────────────────────────────────────────────────────────
+   SAAS MICRO-INTERACTIONS & SKELETON
+───────────────────────────────────────────────────────── */
+
+.skeleton-pulse {
+  background: linear-gradient(
+    90deg,
+    rgba(221, 226, 220, 0.45) 0%,
+    rgba(221, 226, 220, 0.9) 50%,
+    rgba(221, 226, 220, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite ease-in-out;
+  border-radius: 4px;
+}
+
+.table-row-premium {
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+.table-row-premium:hover {
+  background-color: rgba(243, 245, 242, 0.9);
+}
+
+.action-btn-pill {
+  transition:
+    transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1),
+    background-color 0.14s ease,
+    border-color 0.14s ease,
+    color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.action-btn-pill:not(:disabled):hover {
+  transform: translateY(-1px) scale(1.08);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+}
+.action-btn-pill:not(:disabled):active {
+  transform: translateY(0) scale(0.95);
+  transition-duration: 0.08s;
+}
+
+.order-card-interactive {
+  transition:
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease;
+}
+.order-card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(11, 18, 32, 0.08);
+}
+.order-card-interactive:active {
+  transform: translateY(0) scale(0.995);
+  transition-duration: 0.1s;
+}
+
+/* ─────────────────────────────────────────────────────────
+   REDUCED MOTION — always respect user preference
+───────────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
