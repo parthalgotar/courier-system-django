@@ -1,10 +1,21 @@
-import React, { useEffect, useState } from "react";
-import { Plus, Trash2, X } from "lucide-react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Plus, Search, Sparkles, Tag as TagIcon, Trash2, X } from "lucide-react";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatMoney } from "../utils/invoice.js";
 
-export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
+const TAG_PALETTE = [
+  "#ef4444", // Red
+  "#f59e0b", // Amber
+  "#10b981", // Emerald
+  "#3b82f6", // Blue
+  "#8b5cf6", // Purple
+  "#ec4899", // Pink
+  "#06b6d4", // Cyan
+  "#64748b", // Slate
+];
+
+export default function CreateInvoiceModal({ isOpen, onClose, onSuccess, invoice = null }) {
   const { token } = useAuth();
 
   const [customers, setCustomers] = useState([]);
@@ -20,6 +31,14 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
     return d.toISOString().split("T")[0];
   });
   const [selectedTags, setSelectedTags] = useState([]);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
+  const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState("#3b82f6");
+  const [creatingTag, setCreatingTag] = useState(false);
+  const [seedingTags, setSeedingTags] = useState(false);
+  const tagDropdownRef = useRef(null);
+
   const [lines, setLines] = useState([
     { description: "", quantity: 1, unit_price: 100.0, tax_percent: 10.0 },
   ]);
@@ -30,19 +49,73 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
   useEffect(() => {
     if (!isOpen) return;
     setLoadingLookups(true);
+    setTagDropdownOpen(false);
+
+    if (invoice) {
+      setCustomer(invoice.customer ? String(invoice.customer) : "");
+      setNewCustomerName(invoice.customer ? "" : invoice.customer_name || "");
+      setInvoiceDate(invoice.invoice_date || new Date().toISOString().split("T")[0]);
+      setDueDate(invoice.due_date || "");
+      setSelectedTags(
+        Array.isArray(invoice.tags)
+          ? invoice.tags.map((t) => (typeof t === "object" ? t.id : t))
+          : invoice.tag_details?.map((t) => t.id) || []
+      );
+      if (invoice.lines && invoice.lines.length > 0) {
+        setLines(
+          invoice.lines.map((l) => ({
+            description: l.description || l.product || "",
+            quantity: Number(l.quantity) || 1,
+            unit_price: Number(l.unit_price) || 0,
+            tax_percent: Number(l.tax_percent) || 0,
+          }))
+        );
+      }
+    } else {
+      setSelectedTags([]);
+      setNewCustomerName("");
+      setTagSearch("");
+      setNewTagName("");
+      setInvoiceDate(new Date().toISOString().split("T")[0]);
+      const d = new Date();
+      d.setDate(d.getDate() + 30);
+      setDueDate(d.toISOString().split("T")[0]);
+      setLines([{ description: "", quantity: 1, unit_price: 100.0, tax_percent: 10.0 }]);
+    }
+
     Promise.all([api.listCustomers(token), api.listTags(token)])
       .then(([custRes, tagRes]) => {
         const custs = Array.isArray(custRes) ? custRes : custRes?.results || [];
         const tags = Array.isArray(tagRes) ? tagRes : tagRes?.results || [];
         setCustomers(custs);
         setTagsList(tags);
-        if (custs.length > 0) setCustomer(String(custs[0].id));
+        if (!invoice && custs.length > 0) setCustomer(String(custs[0].id));
       })
       .catch((err) => {
         console.error("Lookup error:", err);
       })
       .finally(() => setLoadingLookups(false));
-  }, [isOpen, token]);
+  }, [isOpen, token, invoice]);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(event.target)) {
+        setTagDropdownOpen(false);
+      }
+    }
+    if (tagDropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [tagDropdownOpen]);
+
+  const filteredTags = useMemo(() => {
+    const q = tagSearch.trim().toLowerCase();
+    if (!q) return tagsList;
+    return tagsList.filter((t) => t.name.toLowerCase().includes(q));
+  }, [tagsList, tagSearch]);
 
   if (!isOpen) return null;
 
@@ -70,6 +143,42 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
     setSelectedTags((prev) =>
       prev.includes(tagId) ? prev.filter((id) => id !== tagId) : [...prev, tagId]
     );
+  }
+
+  async function handleCreateTag(customName) {
+    const name = (customName || newTagName || tagSearch).trim();
+    if (!name) return;
+    setCreatingTag(true);
+    try {
+      const created = await api.createTag(token, { name, color: newTagColor });
+      if (created && created.id) {
+        setTagsList((prev) => {
+          if (prev.some((t) => t.id === created.id)) return prev;
+          return [...prev, created].sort((a, b) => a.name.localeCompare(b.name));
+        });
+        setSelectedTags((prev) => (prev.includes(created.id) ? prev : [...prev, created.id]));
+        setNewTagName("");
+        setTagSearch("");
+      }
+    } catch (err) {
+      console.error("Failed to create tag:", err);
+    } finally {
+      setCreatingTag(false);
+    }
+  }
+
+  async function handleSeedDefaults() {
+    setSeedingTags(true);
+    try {
+      const tags = await api.seedDefaultTags(token);
+      if (Array.isArray(tags)) {
+        setTagsList(tags);
+      }
+    } catch (err) {
+      console.error("Failed to seed default tags:", err);
+    } finally {
+      setSeedingTags(false);
+    }
   }
 
   const computedTotals = lines.reduce(
@@ -125,8 +234,13 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
         })),
       };
 
-      const newInv = await api.createInvoice(token, payload);
-      onSuccess?.(newInv);
+      if (invoice?.id) {
+        const updated = await api.updateInvoice(token, invoice.id, payload);
+        onSuccess?.(updated);
+      } else {
+        const newInv = await api.createInvoice(token, payload);
+        onSuccess?.(newInv);
+      }
       onClose();
     } catch (err) {
       setError(err.message || "Failed to create invoice.");
@@ -141,8 +255,12 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-paper-line px-6 py-4 bg-paper/40">
           <div>
-            <h2 className="text-lg font-semibold text-ink font-display">New Draft Invoice</h2>
-            <p className="text-xs text-ink-faint">Create a new customer invoice with line items</p>
+            <h2 className="text-lg font-semibold text-ink font-display">
+              {invoice ? "Edit Invoice" : "New Draft Invoice"}
+            </h2>
+            <p className="text-xs text-ink-faint">
+              {invoice ? "Update invoice details and tags" : "Create a new customer invoice with line items"}
+            </p>
           </div>
           <button
             type="button"
@@ -228,37 +346,231 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
             </div>
           </div>
 
-          {/* Tags */}
-          {tagsList.length > 0 && (
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft mb-1.5">
+          {/* Tags Multi-Select Dropdown */}
+          <div ref={tagDropdownRef} className="relative">
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-ink-soft">
                 Tags
               </label>
-              <div className="flex flex-wrap gap-2">
-                {tagsList.map((tag) => {
-                  const isChecked = selectedTags.includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      type="button"
-                      onClick={() => toggleTag(tag.id)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                        isChecked
-                          ? "bg-freight text-white border-freight"
-                          : "bg-paper text-ink-soft border-paper-line hover:border-freight"
-                      }`}
-                    >
+              {selectedTags.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedTags([])}
+                  className="text-[11px] text-ink-faint hover:text-alert font-medium transition-colors"
+                >
+                  Clear all ({selectedTags.length})
+                </button>
+              )}
+            </div>
+
+            <div
+              tabIndex={0}
+              role="combobox"
+              aria-expanded={tagDropdownOpen}
+              aria-haspopup="listbox"
+              onClick={() => setTagDropdownOpen((prev) => !prev)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setTagDropdownOpen((prev) => !prev);
+                } else if (e.key === "Escape") {
+                  setTagDropdownOpen(false);
+                }
+              }}
+              className="w-full min-h-[40px] rounded-md border border-paper-line bg-white px-3 py-1.5 text-sm text-ink outline-none focus:border-freight flex items-center justify-between gap-2 cursor-pointer transition-colors shadow-2xs hover:border-paper-line/80"
+            >
+              <div className="flex-1 flex flex-wrap items-center gap-1.5 overflow-hidden">
+                {selectedTags.length === 0 ? (
+                  <span className="text-ink-faint text-sm select-none flex items-center gap-1.5">
+                    <TagIcon size={14} className="text-ink-faint/70" />
+                    {loadingLookups
+                      ? "Loading tags…"
+                      : tagsList.length === 0
+                      ? "No tags available (click to add)"
+                      : "Select or add tags…"}
+                  </span>
+                ) : (
+                  selectedTags.map((tagId) => {
+                    const tag = tagsList.find((t) => t.id === tagId);
+                    if (!tag) return null;
+                    return (
                       <span
-                        className="w-2 h-2 rounded-full"
-                        style={{ backgroundColor: tag.color || "#888" }}
-                      />
-                      {tag.name}
-                    </button>
-                  );
-                })}
+                        key={tag.id}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold text-white shadow-2xs transition-transform hover:scale-102"
+                        style={{ backgroundColor: tag.color || "#6366f1" }}
+                      >
+                        <span>{tag.name}</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleTag(tag.id);
+                          }}
+                          className="hover:bg-black/20 p-0.5 rounded-full transition-colors ml-0.5"
+                          title={`Remove ${tag.name}`}
+                          aria-label={`Remove ${tag.name}`}
+                        >
+                          <X size={12} />
+                        </button>
+                      </span>
+                    );
+                  })
+                )}
+              </div>
+
+              <div className="flex items-center gap-1 text-ink-faint flex-shrink-0">
+                <ChevronDown
+                  size={15}
+                  className={`transition-transform duration-150 ${tagDropdownOpen ? "rotate-180" : ""}`}
+                />
               </div>
             </div>
-          )}
+
+            {/* Dropdown Menu */}
+            {tagDropdownOpen && (
+              <div
+                role="listbox"
+                aria-multiselectable="true"
+                onClick={(e) => e.stopPropagation()}
+                className="absolute left-0 right-0 top-full mt-1 z-50 max-h-80 overflow-hidden rounded-lg border border-paper-line bg-white shadow-xl text-sm flex flex-col animate-in fade-in zoom-in-95 duration-100"
+              >
+                {/* Search Bar */}
+                <div className="p-2 border-b border-paper-line bg-paper/20">
+                  <div className="relative flex items-center">
+                    <Search size={13} className="absolute left-2.5 text-ink-faint pointer-events-none" />
+                    <input
+                      type="text"
+                      placeholder="Search tags or type new..."
+                      value={tagSearch}
+                      onChange={(e) => setTagSearch(e.target.value)}
+                      className="w-full pl-8 pr-7 py-1 text-xs border border-paper-line rounded-md bg-white text-ink outline-none focus:border-freight"
+                      autoFocus
+                    />
+                    {tagSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setTagSearch("")}
+                        className="absolute right-2 text-ink-faint hover:text-ink p-0.5"
+                      >
+                        <X size={12} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tags List */}
+                <div className="overflow-y-auto max-h-44 py-1">
+                  {loadingLookups ? (
+                    <div className="px-3 py-3 text-xs text-ink-faint text-center">Loading tags…</div>
+                  ) : filteredTags.length === 0 && tagsList.length === 0 ? (
+                    <div className="px-4 py-3 text-center space-y-2">
+                      <p className="text-xs text-ink-soft">No tags found in the system.</p>
+                      <button
+                        type="button"
+                        onClick={handleSeedDefaults}
+                        disabled={seedingTags}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 rounded text-xs font-semibold bg-freight text-white hover:bg-freight-dark transition-colors disabled:opacity-50 shadow-xs"
+                      >
+                        <Sparkles size={12} />
+                        <span>{seedingTags ? "Adding Defaults…" : "Add Standard Tags"}</span>
+                      </button>
+                    </div>
+                  ) : filteredTags.length === 0 ? (
+                    <div className="px-3 py-2.5 text-xs text-ink-faint text-center">
+                      No tags found matching "{tagSearch}".
+                    </div>
+                  ) : (
+                    filteredTags.map((tag) => {
+                      const isSelected = selectedTags.includes(tag.id);
+                      return (
+                        <div
+                          key={tag.id}
+                          role="option"
+                          aria-selected={isSelected}
+                          onClick={() => toggleTag(tag.id)}
+                          className={`flex items-center justify-between px-3 py-2 text-xs cursor-pointer select-none transition-colors ${
+                            isSelected
+                              ? "bg-freight-soft/40 text-ink font-medium"
+                              : "text-ink hover:bg-paper"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: tag.color || "#888" }}
+                            />
+                            <span>{tag.name}</span>
+                          </div>
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? "bg-freight border-freight text-white"
+                                : "border-paper-line bg-white"
+                            }`}
+                          >
+                            {isSelected && <Check size={11} strokeWidth={3} />}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                {/* Inline Quick Add Tag Section */}
+                <div className="border-t border-paper-line bg-paper/40 p-2.5">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] font-semibold text-ink-soft uppercase tracking-wider">
+                      Create New Tag
+                    </span>
+                    <span className="text-[10px] text-ink-faint">Select color</span>
+                  </div>
+
+                  {/* Color Palette Selector */}
+                  <div className="flex items-center gap-1.5 mb-2">
+                    {TAG_PALETTE.map((color) => (
+                      <button
+                        key={color}
+                        type="button"
+                        onClick={() => setNewTagColor(color)}
+                        className={`w-4 h-4 rounded-full transition-all ${
+                          newTagColor === color
+                            ? "ring-2 ring-offset-1 ring-freight scale-115"
+                            : "opacity-80 hover:opacity-100 hover:scale-110"
+                        }`}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="Tag name (e.g. Expedited)..."
+                      value={newTagName}
+                      onChange={(e) => setNewTagName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleCreateTag();
+                        }
+                      }}
+                      className="flex-1 px-2.5 py-1 text-xs border border-paper-line rounded bg-white text-ink outline-none focus:border-freight"
+                    />
+                    <button
+                      type="button"
+                      disabled={(!newTagName.trim() && !tagSearch.trim()) || creatingTag}
+                      onClick={() => handleCreateTag()}
+                      className="px-2.5 py-1 text-xs font-semibold rounded bg-freight text-white hover:bg-freight-dark transition-colors disabled:opacity-40 flex items-center gap-1 shadow-xs"
+                    >
+                      <Plus size={12} />
+                      <span>{creatingTag ? "Adding…" : "Add"}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Lines Table */}
           <div>
@@ -390,7 +702,7 @@ export default function CreateInvoiceModal({ isOpen, onClose, onSuccess }) {
               disabled={submitting}
               className="px-5 py-2 text-sm font-medium text-white bg-freight hover:bg-freight-dark rounded-md shadow-sm transition-colors disabled:opacity-50"
             >
-              {submitting ? "Creating..." : "Save Draft"}
+              {submitting ? "Saving..." : invoice ? "Save Changes" : "Save Draft"}
             </button>
           </div>
         </form>

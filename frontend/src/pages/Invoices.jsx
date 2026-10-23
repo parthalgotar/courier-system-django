@@ -17,6 +17,8 @@ import {
   X,
   FileText,
   Filter,
+  Pencil,
+  Tag as TagIcon,
 } from "lucide-react";
 import Layout from "../components/Layout.jsx";
 import InvoiceStatusBadge from "../components/InvoiceStatusBadge.jsx";
@@ -107,6 +109,21 @@ export default function Invoices() {
   const [deletingId, setDeletingId] = useState(null);
   const [selectedLogInv, setSelectedLogInv] = useState(null);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState(null);
+  const [tagFilter, setTagFilter] = useState(searchParams.get("tag") || "");
+  const [availableTags, setAvailableTags] = useState([]);
+
+  // Fetch available tags for filter dropdown
+  useEffect(() => {
+    if (!token) return;
+    api
+      .listTags(token)
+      .then((res) => {
+        const list = Array.isArray(res) ? res : res?.results || [];
+        setAvailableTags(list);
+      })
+      .catch((err) => console.error("Error loading tags in Invoices:", err));
+  }, [token, reloadKey]);
 
   // Debounce search input
   useEffect(() => {
@@ -124,13 +141,14 @@ export default function Invoices() {
     if (statusFilter) params.set("status", statusFilter);
     if (unpaidOnly) params.set("unpaid", "true");
     if (overdueOnly) params.set("overdue", "true");
+    if (tagFilter) params.set("tag", tagFilter);
     if (search) params.set("search", search);
     if (dateFrom) params.set("date_from", dateFrom);
     if (dateTo) params.set("date_to", dateTo);
     if (page > 1) params.set("page", String(page));
 
     setSearchParams(params, { replace: true });
-  }, [activeGroupBys, statusFilter, unpaidOnly, overdueOnly, search, dateFrom, dateTo, page, setSearchParams]);
+  }, [activeGroupBys, statusFilter, unpaidOnly, overdueOnly, tagFilter, search, dateFrom, dateTo, page, setSearchParams]);
 
   // Toggle group by field in selection order (multi-select, unlimited levels)
   function toggleGroupBy(id) {
@@ -188,6 +206,7 @@ export default function Invoices() {
     setStatusFilter("");
     setUnpaidOnly(false);
     setOverdueOnly(false);
+    setTagFilter("");
     setSearchInput("");
     setSearch("");
     setDateFrom("");
@@ -209,6 +228,7 @@ export default function Invoices() {
       overdue: overdueOnly ? "true" : undefined,
       date_from: dateFrom || undefined,
       date_to: dateTo || undefined,
+      tags: tagFilter || undefined,
     };
 
     if (activeGroupBys.length > 0) {
@@ -270,6 +290,7 @@ export default function Invoices() {
     statusFilter,
     unpaidOnly,
     overdueOnly,
+    tagFilter,
     dateFrom,
     dateTo,
     sortKey,
@@ -280,10 +301,10 @@ export default function Invoices() {
 
   const totalPages = Math.max(1, Math.ceil(data.count / pageSize));
   const hasActiveFilters = Boolean(
-    search || statusFilter || unpaidOnly || overdueOnly || dateFrom || dateTo || activeGroupBys.length > 0
+    search || statusFilter || unpaidOnly || overdueOnly || dateFrom || dateTo || tagFilter || activeGroupBys.length > 0
   );
   const hasActiveFilterChips = Boolean(
-    search || statusFilter || unpaidOnly || overdueOnly || dateFrom || dateTo
+    search || statusFilter || unpaidOnly || overdueOnly || dateFrom || dateTo || tagFilter
   );
 
   async function handleDownload(e, inv) {
@@ -349,7 +370,23 @@ export default function Invoices() {
         >
           {invNum}
         </td>
-        <td className="px-4 py-3 text-ink font-medium">{custName}</td>
+        <td className="px-4 py-3">
+          <div className="text-ink font-medium">{custName}</div>
+          {inv.tag_details && inv.tag_details.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1 mt-1">
+              {inv.tag_details.map((t) => (
+                <span
+                  key={t.id}
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-white shadow-2xs"
+                  style={{ backgroundColor: t.color || "#6366f1" }}
+                  title={`Tag: ${t.name}`}
+                >
+                  {t.name}
+                </span>
+              ))}
+            </div>
+          )}
+        </td>
         <td className="px-4 py-3 text-ink-soft whitespace-nowrap text-xs">{formatDate(inv.invoice_date)}</td>
         <td className="px-4 py-3 text-ink-soft whitespace-nowrap text-xs">
           {inv.due_date ? formatDate(inv.due_date) : "—"}
@@ -386,16 +423,31 @@ export default function Invoices() {
           </button>
         </td>
         <td className="px-4 py-3 text-center">
-          {!isPaid && inv.status === "draft" && (
-            <button
-              onClick={(e) => handleDelete(e, inv)}
-              disabled={deletingId === inv.id}
-              title="Delete draft invoice"
-              className="action-btn-pill inline-grid place-items-center w-8 h-8 rounded-md border border-paper-line text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
-            >
-              <Trash2 size={14} className={deletingId === inv.id ? "spin" : ""} />
-            </button>
-          )}
+          <div className="inline-flex items-center justify-center gap-1">
+            {!isPaid && inv.status === "draft" && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingInvoice(inv);
+                  setCreateModalOpen(true);
+                }}
+                title="Edit draft invoice & tags"
+                className="action-btn-pill inline-grid place-items-center w-8 h-8 rounded-md border border-paper-line text-freight hover:bg-freight-soft transition-colors"
+              >
+                <Pencil size={13} />
+              </button>
+            )}
+            {!isPaid && inv.status === "draft" && (
+              <button
+                onClick={(e) => handleDelete(e, inv)}
+                disabled={deletingId === inv.id}
+                title="Delete draft invoice"
+                className="action-btn-pill inline-grid place-items-center w-8 h-8 rounded-md border border-paper-line text-red-600 hover:bg-red-50 transition-colors disabled:opacity-40"
+              >
+                <Trash2 size={14} className={deletingId === inv.id ? "spin" : ""} />
+              </button>
+            )}
+          </div>
         </td>
       </tr>
     );
@@ -532,8 +584,8 @@ export default function Invoices() {
           })}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
-          <div className="md:col-span-2 relative">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-3 items-end">
+          <div className="sm:col-span-2 md:col-span-2 relative">
             <Input
               label="Search"
               placeholder="Invoice #, customer, order #..."
@@ -557,6 +609,19 @@ export default function Invoices() {
             value={dateTo}
             onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
           />
+
+          <Select
+            label="Tag"
+            value={tagFilter}
+            onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}
+          >
+            <option value="">All Tags</option>
+            {availableTags.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
 
           {activeGroupBys.length === 0 && (
             <Select
@@ -639,6 +704,24 @@ export default function Invoices() {
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-paper border border-paper-line text-ink">
               To: {dateTo}
               <button type="button" onClick={() => setDateTo("")} className="hover:text-red-500 font-bold">×</button>
+            </span>
+          )}
+          {tagFilter && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-paper border border-paper-line text-ink">
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{
+                  backgroundColor:
+                    availableTags.find((t) => String(t.id) === String(tagFilter))?.color || "#6366f1",
+                }}
+              />
+              Tag:{" "}
+              <span className="font-semibold">
+                {availableTags.find((t) => String(t.id) === String(tagFilter))?.name || tagFilter}
+              </span>
+              <button type="button" onClick={() => setTagFilter("")} className="hover:text-red-500 font-bold">
+                ×
+              </button>
             </span>
           )}
 

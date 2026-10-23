@@ -647,11 +647,11 @@ export default function InvoiceDetail() {
           </Field>
         </div>
 
-        {invoice.tag_details && invoice.tag_details.length > 0 && (
+        {((invoice.tag_details && invoice.tag_details.length > 0) || (Array.isArray(invoice.tags) && invoice.tags.length > 0 && typeof invoice.tags[0] === "object")) && (
           <div className="mt-4 pt-4 border-t border-paper-line flex items-center gap-2 flex-wrap">
             <Tag size={13} className="text-ink-faint" />
             <span className="text-xs text-ink-faint">Tags:</span>
-            {invoice.tag_details.map((t) => (
+            {(invoice.tag_details && invoice.tag_details.length > 0 ? invoice.tag_details : invoice.tags).map((t) => (
               <span
                 key={t.id}
                 className="px-2 py-0.5 rounded text-[11px] font-medium text-white shadow-xs"

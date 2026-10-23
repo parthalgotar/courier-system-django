@@ -17,3 +17,4 @@ class UserAdmin(BaseUserAdmin):
         (None, {"classes": ("wide",), "fields": ("email", "full_name", "role", "password1", "password2")}),
     )
     search_fields = ["email", "full_name"]
+     

@@ -628,7 +628,9 @@ def create_invoice_for_order(order, *, freight_charge, tax_amount=Decimal("0.00"
             existing = get_live_invoice(order)
             if existing:
                 return existing, False
-    raise last_error
+    if last_error is not None:
+        raise last_error
+    raise RuntimeError("Failed to create invoice after retries.")
 
 
 # ------------------------------------------------------------------ E-mail Sending

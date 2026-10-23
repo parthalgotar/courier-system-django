@@ -773,7 +773,7 @@ class BackfillMigrationTests(TransactionTestCase):
 
     def test_closed_orders_are_backfilled_and_rerun_is_safe(self):
         executor = MigrationExecutor(connection)
-        before = [("invoices", "0001_initial"), ("vendors", "0002_vendor_user_email")]
+        before = [("invoices", "0001_initial"), ("vendors", "0002_vendor_user_email"), ("orders", "0004_add_order_date")]
         executor.migrate(before)  # roll invoices back to before the data migration
         apps = executor.loader.project_state(before).apps
         HVendor, HOrder, HInvoice = apps.get_model("vendors", "Vendor"), apps.get_model("orders", "Order"), apps.get_model("invoices", "Invoice")

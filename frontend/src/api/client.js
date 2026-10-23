@@ -129,6 +129,8 @@ export const api = {
     request(`/invoices/${invoiceId}/update-status/`, { method: "PATCH", body: { status: newStatus }, token }),
   /** Admin only: delete an unpaid invoice. */
   deleteInvoice: (token, invoiceId) => request(`/invoices/${invoiceId}/`, { method: "DELETE", token }),
+  updateInvoice: (token, invoiceId, payload) =>
+    request(`/invoices/${invoiceId}/`, { method: "PATCH", body: payload, token }),
 
   // ---- Accounting Enhancements (State, Pay, Group By, Master Data) ----
   confirmInvoice: (token, invoiceId) =>
@@ -145,6 +147,8 @@ export const api = {
   listJournals: (token) => request("/journals/", { token }),
   listCustomers: (token) => request("/customers/", { token }),
   listTags: (token) => request("/tags/", { token }),
+  createTag: (token, payload) => request("/tags/", { method: "POST", body: payload, token }),
+  seedDefaultTags: (token) => request("/tags/seed_defaults/", { method: "POST", token }),
   listPayments: (token, query, signal) =>
     request("/payments/", { token, query: cleanQuery(query), signal }),
   getGroupedPayments: (token, query, signal) =>

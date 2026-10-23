@@ -88,6 +88,38 @@ class TagViewSet(viewsets.ModelViewSet):
     filter_backends = [SearchFilter]
     search_fields = ["name"]
 
+    def create(self, request, *args, **kwargs):
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"name": ["This field may not be blank."]}, status=status.HTTP_400_BAD_REQUEST)
+        color = (request.data.get("color") or "").strip() or "#6366f1"
+        existing = Tag.objects.filter(name__iexact=name).first()
+        if existing:
+            serializer = self.get_serializer(existing)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        tag = Tag.objects.create(name=name, color=color)
+        serializer = self.get_serializer(tag)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=["post"])
+    def seed_defaults(self, request):
+        defaults = [
+            {"name": "Urgent", "color": "#ef4444"},
+            {"name": "VIP", "color": "#f59e0b"},
+            {"name": "Wholesale", "color": "#3b82f6"},
+            {"name": "Retail", "color": "#10b981"},
+            {"name": "Services", "color": "#8b5cf6"},
+            {"name": "Logistics", "color": "#06b6d4"},
+            {"name": "Recurring", "color": "#ec4899"},
+            {"name": "Tax-Exempt", "color": "#64748b"},
+        ]
+        created = []
+        for item in defaults:
+            tag, _ = Tag.objects.get_or_create(name=item["name"], defaults={"color": item["color"]})
+            created.append(tag)
+        serializer = self.get_serializer(created, many=True)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 class JournalViewSet(viewsets.ModelViewSet):
     """API for journals (Cash / Bank): /api/v1/invoices/journals/ and /api/journals/."""

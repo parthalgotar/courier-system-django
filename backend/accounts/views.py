@@ -16,7 +16,7 @@ class RegisterView(APIView):
     def post(self, request):
         if User.objects.filter(email=request.data.get("email")).exists():
             return Response({"detail": "Email already registered"}, status=status.HTTP_400_BAD_REQUEST)
-        serializer = RegisterSerializer(data=request.data)
+        serializer = RegisterSerializer(data=request.data)  
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(UserSerializer(user).data, status=status.HTTP_201_CREATED)
@@ -28,8 +28,11 @@ class LoginView(APIView):
     def post(self, request):
         email = request.data.get("email")
         password = request.data.get("password")
-        user = User.objects.filter(email=email).first()
-        if not user or not user.check_password(password):
+        if not email or not password or not isinstance(email, str) or not isinstance(password, str):
+            return Response({"detail": "Incorrect email or password"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user = User.objects.filter(email__iexact=email.strip()).first()
+        if not user or not user.is_active or not user.check_password(password):
             return Response({"detail": "Incorrect email or password"}, status=status.HTTP_401_UNAUTHORIZED)
 
         token = RefreshToken.for_user(user)
